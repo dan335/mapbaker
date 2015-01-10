@@ -117,7 +117,7 @@ Mapbaker.prototype.createSvg = function(hex, x, y) {
     } else {
         var imageName = 'hex_'+hex.type+'_'+hex.tileImage+'.png'
     }
-    imageName = Meteor.absoluteUrl()+'/game_images/'+imageName
+    imageName = Meteor.absoluteUrl()+'game_images/'+imageName
     var imageX = pos.x - 63
     var imageY = pos.y - 41
     svg += '<image x="'+imageX+'" y="'+imageY+'" width="126" height="83" xlink:href="'+imageName+'" />'
