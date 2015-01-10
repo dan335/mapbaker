@@ -8,14 +8,15 @@ Mapbaker = function() {
     this.s3 = Knox.createClient({
         key: Meteor.settings.s3key,
         secret: Meteor.settings.s3secretKey,
-        bucket: Meteor.settings.s3bucket
+        bucket: Meteor.settings.s3bucket,
+        region: Meteor.settings.s3region
     })
 
     this.fs = Npm.require('fs')
     this.toPng = Npm.require('svg2png')
 
     // dominus/.temp/hexes
-    this.meteorPath = '../../../../../.temp/hexes/'
+    this.meteorPath = 'hexes/'
 
     this.s3prefix = 'hexes/'
 
@@ -134,11 +135,16 @@ Mapbaker.prototype.createSvg = function(hex, x, y) {
 Mapbaker.prototype.deleteLocalFiles = function() {
     var self = this
 
-    // delete all files in temp directory
-    self.fs.readdirSync(self.meteorPath).forEach(function(file, index) {
-        var curPath = self.meteorPath + '/' + file
-        self.fs.unlinkSync(curPath);
-    })
+    if (self.fs.existsSync(self.meteorPath)) {
+        // delete all files in temp directory
+        self.fs.readdirSync(self.meteorPath).forEach(function(file, index) {
+            var curPath = self.meteorPath + '/' + file
+            self.fs.unlinkSync(curPath);
+        })
+    } else {
+        // create directory
+        self.fs.mkdirSync(self.meteorPath)
+    }
 }
 
 
@@ -197,23 +203,17 @@ Mapbaker.prototype.createImage = function(svgString, name, imageObject) {
                     throw new Meteor.Error(error)
                 }
 
-                try {
-                    var req = self.s3.put('hexes/'+name+'.png', {
-                        'Content-Length': stat.size,
-                        'Content-Type': 'image/png'
-                    })
-
-                    self.fs.createReadStream(self.meteorPath+name+'.png').pipe(req)
-                }
-                catch(error) {
-                    throw new Meteor.Error(error)
-                }
-
-                req.on('response', Meteor.bindEnvironment(function(res) {
-                    // wait until it's uploaded to insert into db
-                    Hexbakes.insert(imageObject)
+                self.s3.putFile(self.meteorPath+name+'.png', 'hexes/'+name+'.png', {
+                    'Content-Length': stat.size,
+                    'Content-Type': 'image/png'
+                }, Meteor.bindEnvironment(function(error, res) {
+                    if (error) {
+                        throw new Meteor.Error(error)
+                    } else {
+                        res.resume()
+                        Hexbakes.insert(imageObject)
+                    }
                 }))
-
             }))
         }))
     }))

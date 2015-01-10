@@ -1,7 +1,7 @@
 Package.describe({
   name: 'danimal:mapbaker',
   summary: 'Map baker for Dominus http://dominusgame.net',
-  version: '1.0.0',
+  version: '1.0.2',
   git: 'https://github.com/dan335/mapbaker'
 });
 
