@@ -29,6 +29,8 @@ Mapbaker.prototype.bakeHexes = function() {
 
     console.log('--- baking hexes ---')
 
+    self.resetImageCounter()
+
     // find hex min/max
     var minX = Hexes.findOne({}, {sort:{x:1}, limit:1, fields:{x:1}}).x
     var minY = Hexes.findOne({}, {sort:{y:1}, limit:1, fields:{y:1}}).y
@@ -56,6 +58,10 @@ Mapbaker.prototype.bakeHexes = function() {
 
     for (var x = minX; x <= maxX; x += self.numHexes) {
         for (var y = minY; y <= maxY; y += self.numHexes) {
+
+            // keep track of how many images
+            // for progress bar
+            self.imageStarted()
 
             var hexes = Hexes.find({x: {$gte:x, $lt:x+self.numHexes}, y: {$gte:y, $lt:y+self.numHexes}})
             var svg = ''
@@ -182,6 +188,31 @@ Mapbaker.prototype.deleteS3Files = function() {
 }
 
 
+Mapbaker.prototype.resetImageCounter = function() {
+    Settings.upsert({name: 'mapBakeImagesStarted'}, {$set: {value:0}})
+    Settings.upsert({name: 'mapBakeImagesFinished'}, {$set: {value:0}})
+}
+
+
+Mapbaker.prototype.imageStarted = function() {
+    Settings.upsert({
+        name: 'mapBakeImagesStarted'
+    }, {
+        $inc: {value:1}
+    })
+}
+
+
+Mapbaker.prototype.imageFinished = function() {
+    Settings.upsert({
+        name: 'mapBakeImagesFinished'
+    }, {
+        $inc: {value:1}
+    })
+}
+
+
+
 Mapbaker.prototype.createImage = function(svgString, name, imageObject) {
     var self = this
 
@@ -212,6 +243,7 @@ Mapbaker.prototype.createImage = function(svgString, name, imageObject) {
                     } else {
                         res.resume()
                         Hexbakes.insert(imageObject)
+                        self.imageFinished()
                     }
                 }))
             }))
