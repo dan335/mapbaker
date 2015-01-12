@@ -1,7 +1,7 @@
 {
   "dependencies": {
-    "svg2png": {
-      "version": "1.1.0",
+    "svgexport": {
+      "version": "0.1.14",
       "dependencies": {
         "phantomjs": {
           "version": "1.9.13",
@@ -137,9 +137,6 @@
                     },
                     "mime": {
                       "version": "1.2.11"
-                    },
-                    "async": {
-                      "version": "0.9.0"
                     }
                   }
                 },
@@ -200,6 +197,9 @@
               "version": "1.0.8"
             }
           }
+        },
+        "async": {
+          "version": "0.9.0"
         }
       }
     }

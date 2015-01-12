@@ -13,7 +13,7 @@ Mapbaker = function() {
     })
 
     this.fs = Npm.require('fs')
-    this.toPng = Npm.require('svg2png')
+    this.svgexport = Npm.require('svgexport')
 
     // dominus/.temp/hexes
     this.meteorPath = 'hexes/'
@@ -31,6 +31,9 @@ Mapbaker.prototype.bakeHexes = function() {
 
     self.resetImageCounter()
 
+    var hexWidth = self.hexSize
+    var hexHeight = self.hexSize * (Math.sqrt(3) * self.hexSquish)
+
     // find hex min/max
     var minX = Hexes.findOne({}, {sort:{x:1}, limit:1, fields:{x:1}}).x
     var minY = Hexes.findOne({}, {sort:{y:1}, limit:1, fields:{y:1}}).y
@@ -39,17 +42,23 @@ Mapbaker.prototype.bakeHexes = function() {
 
     // offset entire svg, transform group
     // to fit into image
+    // var offsetX = self.hexSize
+    // var offsetY = self.hexSize * (Math.sqrt(3) * self.hexSquish) / 2
     var offsetX = self.hexSize
-    var offsetY = self.hexSize * (Math.sqrt(3) * self.hexSquish) / 2
+    var offsetY = self.hexSize * (Math.sqrt(3) * self.hexSquish) * 2
 
     // offset pos of image on screen
+    // var offsetPosX = offsetX * -1
+    // var offsetPosY = offsetY * -1
     var offsetPosX = offsetX * -1
     var offsetPosY = offsetY * -1
 
-    // size of svg image
-    var svgWidth = self.hexSize + (self.hexSize * 3/2 * (self.numHexes-1)) + self.hexSize
+    // size of image
+    var svgWidth = Math.ceil(self.hexSize + (self.hexSize * 3/2 * (self.numHexes-1)) + (self.hexSize/2)) +2
     var numVerticalHexes = self.numHexes + ((self.numHexes-1)/2)
-    var svgHeight = (self.hexSize * (Math.sqrt(3) * self.hexSquish)) * numVerticalHexes
+    //var svgHeight = Math.ceil((self.hexSize * (Math.sqrt(3) * self.hexSquish)) * numVerticalHexes)
+    //var svgHeight = Math.ceil(hexHeight * self.numHexes + hexHeight)
+    var svgHeight = Math.ceil(hexHeight * self.numHexes + hexHeight) +2
 
     //delete files in temp dir and on s3
     self.deleteLocalFiles()
@@ -63,11 +72,22 @@ Mapbaker.prototype.bakeHexes = function() {
             // for progress bar
             self.imageStarted()
 
-            var hexes = Hexes.find({x: {$gte:x, $lt:x+self.numHexes}, y: {$gte:y, $lt:y+self.numHexes}})
+            var gteX = x-1
+            var ltX = x+self.numHexes+1
+            var gteY = y - (self.numHexes / 3) * 2
+            var ltY = y+self.numHexes+1
+
+            var hexes = Hexes.find({x: {$gte:gteX, $lt:ltX}, y: {$gte:gteY, $lt:ltY}})
             var svg = ''
 
             svg += '<svg width="'+svgWidth+'" height="'+svgHeight+'" version="1.1" xmlns="http://www.w3.org/2000/svg" xmlns:xlink= "http://www.w3.org/1999/xlink">'
+
+            // background
+            svg += '<rect width="'+svgWidth+'" height="'+svgHeight+'" fill="#444" />'
+
             svg += '<g transform="translate('+offsetX+','+offsetY+')">'
+
+
 
             var filename = x+'_'+y
 
@@ -97,10 +117,11 @@ Mapbaker.prototype.bakeHexes = function() {
                 centerX: Math.round((imageMaxX - x) / 2) + x,
                 centerY: Math.round((imageMaxY - y) / 2) + y,
                 filename: filename,
-                posX: pos.x + offsetPosX,
-                posY: pos.y + offsetPosY,
+                posX: Math.round(pos.x + offsetPosX),
+                posY: Math.round(pos.y + offsetPosY),
                 width: svgWidth,
-                height: svgHeight
+                height: svgHeight,
+                created_at: new Date()
             }
 
             self.createImage(svg, filename, imageObject)
@@ -216,37 +237,57 @@ Mapbaker.prototype.imageFinished = function() {
 Mapbaker.prototype.createImage = function(svgString, name, imageObject) {
     var self = this
 
+    self.fut = new self.Future()
     // create svg file
     self.fs.writeFile(self.meteorPath+name+'.svg', svgString, Meteor.bindEnvironment(function(error) {
         if (error) {
             throw new Meteor.Error(error)
         }
 
-        // convert to png
-        self.toPng(self.meteorPath+name+'.svg', self.meteorPath+name+'.png', Meteor.bindEnvironment(function(error) {
+        self.svgexport.render([{
+            'input': self.meteorPath+name+'.svg',
+            'output': self.meteorPath+name+'.jpg jpg 75%'
+        }], function(error, result) {
             if (error) {
+                console.log(error)
                 throw new Meteor.Error(error)
             }
 
-            // upload to amazon s3
-            self.fs.stat(self.meteorPath+name+'.png', Meteor.bindEnvironment(function(error, stat) {
-                if (error) {
-                    throw new Meteor.Error(error)
-                }
+            self.fut['return'](true)
+        })
 
-                self.s3.putFile(self.meteorPath+name+'.png', 'hexes/'+name+'.png', {
-                    'Content-Length': stat.size,
-                    'Content-Type': 'image/png'
-                }, Meteor.bindEnvironment(function(error, res) {
-                    if (error) {
-                        throw new Meteor.Error(error)
-                    } else {
-                        res.resume()
-                        Hexbakes.insert(imageObject)
-                        self.imageFinished()
-                    }
-                }))
-            }))
+        // convert to png
+        // self.toPng(self.meteorPath+name+'.svg', self.meteorPath+name+'.png', Meteor.bindEnvironment(function(error) {
+        //     if (error) {
+        //         console.log(error)
+        //         throw new Meteor.Error(error)
+        //     }
+        //
+        //     self.fut['return'](true)
+        // }))
+
+
+    }))
+
+    self.fut.wait()
+
+    // upload to amazon s3
+    self.fs.stat(self.meteorPath+name+'.jpg', Meteor.bindEnvironment(function(error, stat) {
+        if (error) {
+            throw new Meteor.Error(error)
+        }
+
+        self.s3.putFile(self.meteorPath+name+'.jpg', 'hexes/'+name+'.jpg', {
+            'Content-Length': stat.size,
+            'Content-Type': 'image/jpg'
+        }, Meteor.bindEnvironment(function(error, res) {
+            if (error) {
+                throw new Meteor.Error(error)
+            } else {
+                res.resume()
+                Hexbakes.insert(imageObject)
+                self.imageFinished()
+            }
         }))
     }))
 }
