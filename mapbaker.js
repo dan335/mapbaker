@@ -58,7 +58,7 @@ Mapbaker.prototype.bakeHexes = function() {
     var numVerticalHexes = self.numHexes + ((self.numHexes-1)/2)
     //var svgHeight = Math.ceil((self.hexSize * (Math.sqrt(3) * self.hexSquish)) * numVerticalHexes)
     //var svgHeight = Math.ceil(hexHeight * self.numHexes + hexHeight)
-    var svgHeight = Math.ceil(hexHeight * self.numHexes + hexHeight) +2
+    var svgHeight = Math.ceil(hexHeight * self.numHexes + hexHeight * 1.5) +2
 
     //delete files in temp dir and on s3
     self.deleteLocalFiles()
@@ -233,43 +233,68 @@ Mapbaker.prototype.imageFinished = function() {
 }
 
 
-
-Mapbaker.prototype.createImage = function(svgString, name, imageObject) {
+Mapbaker.prototype.createSvgImage = function(filepath, svgString) {
     var self = this
-
     self.fut = new self.Future()
-    // create svg file
-    self.fs.writeFile(self.meteorPath+name+'.svg', svgString, Meteor.bindEnvironment(function(error) {
+    self.fs.writeFile(filepath, svgString, Meteor.bindEnvironment(function(error) {
         if (error) {
             throw new Meteor.Error(error)
         }
 
-        self.svgexport.render([{
-            'input': self.meteorPath+name+'.svg',
-            'output': self.meteorPath+name+'.jpg jpg 75%'
-        }], function(error, result) {
-            if (error) {
-                console.log(error)
-                throw new Meteor.Error(error)
-            }
-
-            self.fut['return'](true)
-        })
-
-        // convert to png
-        // self.toPng(self.meteorPath+name+'.svg', self.meteorPath+name+'.png', Meteor.bindEnvironment(function(error) {
-        //     if (error) {
-        //         console.log(error)
-        //         throw new Meteor.Error(error)
-        //     }
-        //
-        //     self.fut['return'](true)
-        // }))
-
-
+        self.fut['return'](true)
     }))
 
-    self.fut.wait()
+    return self.fut.wait()
+}
+
+
+Mapbaker.prototype.createJpgImage = function(inFile, outFile, outFileType, quality) {
+    var self = this
+    self.fut = new self.Future()
+    self.svgexport.render([{
+        'input': inFile,
+        'output': outFile+' '+outFileType+' '+quality
+    }], Meteor.bindEnvironment(function(error, result) {
+        if (error) {
+            console.log(error)
+            throw new Meteor.Error(error)
+        }
+
+        self.fut['return'](true)
+    }))
+    return self.fut.wait()
+}
+
+
+Mapbaker.prototype.createImage = function(svgString, name, imageObject) {
+    var self = this
+
+    var x = 0
+    do {
+        if (x > 0) {
+            console.log('baking svg try '+x)
+        }
+        self.createSvgImage(self.meteorPath+name+'.svg', svgString)
+        if (x > 10) {
+            throw new Meteor.Error('Could not create svg after 10 tries.')
+        }
+        x++
+    }
+    while(!self.fs.existsSync(self.meteorPath+name+'.svg'))
+
+    var x = 0
+    do {
+        if (x > 0) {
+            console.log('baking jpg try '+x)
+        }
+        self.createJpgImage(self.meteorPath+name+'.svg', self.meteorPath+name+'.jpg', 'jpg', '75%')
+        if (x > 10) {
+            throw new Meteor.Error('Could not create jpg after 10 tries.')
+        }
+        x++
+    }
+    while(!self.fs.existsSync(self.meteorPath+name+'.jpg'))
+
 
     // upload to amazon s3
     self.fs.stat(self.meteorPath+name+'.jpg', Meteor.bindEnvironment(function(error, stat) {
