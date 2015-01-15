@@ -235,22 +235,22 @@ Mapbaker.prototype.imageFinished = function() {
 
 Mapbaker.prototype.createSvgImage = function(filepath, svgString) {
     var self = this
-    self.fut = new self.Future()
+    var fut = new self.Future()
     self.fs.writeFile(filepath, svgString, Meteor.bindEnvironment(function(error) {
         if (error) {
             throw new Meteor.Error(error)
         }
 
-        self.fut['return'](true)
+        fut['return'](true)
     }))
 
-    return self.fut.wait()
+    return fut.wait()
 }
 
 
 Mapbaker.prototype.createJpgImage = function(inFile, outFile, outFileType, quality) {
     var self = this
-    self.fut = new self.Future()
+    var fut = new self.Future()
     self.svgexport.render([{
         'input': inFile,
         'output': outFile+' '+outFileType+' '+quality
@@ -260,11 +260,23 @@ Mapbaker.prototype.createJpgImage = function(inFile, outFile, outFileType, quali
             throw new Meteor.Error(error)
         }
 
-        self.fut['return'](true)
+        fut['return'](true)
     }))
-    return self.fut.wait()
+    return fut.wait()
 }
 
+
+Mapbaker.prototype.imageExists = function(image_url){
+    check(image_url, String)
+
+    try {
+        var result = HTTP.get(image_url)
+        return true
+    } catch (error) {
+        return false
+    }
+
+}
 
 Mapbaker.prototype.createImage = function(svgString, name, imageObject) {
     var self = this
@@ -302,6 +314,10 @@ Mapbaker.prototype.createImage = function(svgString, name, imageObject) {
             throw new Meteor.Error(error)
         }
 
+        if (!stat.isFile()) {
+            throw new Meteor.Error('stat is not a file')
+        }
+
         self.s3.putFile(self.meteorPath+name+'.jpg', 'hexes/'+name+'.jpg', {
             'Content-Length': stat.size,
             'Content-Type': 'image/jpg'
@@ -309,9 +325,15 @@ Mapbaker.prototype.createImage = function(svgString, name, imageObject) {
             if (error) {
                 throw new Meteor.Error(error)
             } else {
-                res.resume()
-                Hexbakes.insert(imageObject)
-                self.imageFinished()
+
+                var imagepath = Meteor.settings.public.s3path+'/hexes/'+name+'.jpg'
+                if (res.statusCode == 200 && self.imageExists(imagepath)) {
+                    Hexbakes.insert(imageObject)
+                    self.imageFinished()
+                } else {
+                    console.log('check of '+imagepath+' failed, retrying')
+                    self.createImage(svgString, name, imageObject)
+                }
             }
         }))
     }))
