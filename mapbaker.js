@@ -92,10 +92,13 @@ Mapbaker.prototype.bakeHexes = function() {
 
 
             var filename = x+'_'+y
+            var filenameWithCoords = filename+'_withcoords'
 
             // find max to save to Hexbakes
             var imageMaxX = x
             var imageMaxY = y
+
+            var svgWithCoords = svg
 
             hexes.forEach(function(hex) {
                 if (hex.x > imageMaxX) {
@@ -104,11 +107,14 @@ Mapbaker.prototype.bakeHexes = function() {
                 if (hex.y > imageMaxY) {
                     imageMaxY = hex.y
                 }
-                svg += self.createSvg(hex, x, y)
+                svg += self.createSvg(hex, x, y, false)
+                svgWithCoords += self.createSvg(hex, x, y, true)
             })
 
             svg += '</g>'
             svg += '</svg>'
+            svgWithCoords += '</g>'
+            svgWithCoords += '</svg>'
 
             var pos = Hx.coordinatesToPos(x, y, self.hexSize, self.hexSquish)
             var imageObject = {
@@ -123,16 +129,22 @@ Mapbaker.prototype.bakeHexes = function() {
                 posY: Math.round(pos.y + offsetPosY),
                 width: svgWidth,
                 height: svgHeight,
-                created_at: new Date()
+                created_at: new Date(),
+                hasCoords: false
             }
 
+            var imageObjectWithCoords = EJSON.clone(imageObject)
+            imageObjectWithCoords.filename = filenameWithCoords
+            imageObjectWithCoords.hasCoords = true
+
             self.createImage(svg, filename, imageObject)
+            self.createImage(svgWithCoords, filenameWithCoords, imageObjectWithCoords)
         }
     }
 }
 
 
-Mapbaker.prototype.createSvg = function(hex, x, y) {
+Mapbaker.prototype.createSvg = function(hex, x, y, withCoords) {
     var self = this
 
     var svg = ''
@@ -154,8 +166,11 @@ Mapbaker.prototype.createSvg = function(hex, x, y) {
     // outline
     svg += '<polygon stroke="#628c6e" stroke-opacity="1" stroke-width="1" fill-opacity="0" points="'+points+'"></polygon>'
 
-    // coord
-    //svg += '<text x="'+pos.x+'" y="'+pos.y+'" fill="#000">'+hex.x+','+hex.y+'</text>'
+    if (withCoords) {
+        var textX = pos.x - 9
+        var textY = pos.y + 34
+        svg += '<text x="'+textX+'" y="'+textY+'" fill="#000" fill-opacity="0.75" style="font-size:9px;">'+hex.x+','+hex.y+'</text>'
+    }
 
     return svg
 }
@@ -221,7 +236,7 @@ Mapbaker.prototype.imageStarted = function() {
     Settings.upsert({
         name: 'mapBakeImagesStarted'
     }, {
-        $inc: {value:1}
+        $inc: {value:2} // one for svg one for svgWithCoords
     })
 }
 
