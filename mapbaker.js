@@ -77,7 +77,7 @@ Mapbaker.prototype.bakeHexes = function() {
             var gteX = x-1
             var ltX = x+self.numHexes+1
             var gteY = y - (self.numHexes / 3) * 2
-            var ltY = y+self.numHexes+1
+            var ltY = y+self.numHexes*2
 
             var hexes = Hexes.find({x: {$gte:gteX, $lt:ltX}, y: {$gte:gteY, $lt:ltY}})
             var svg = ''
