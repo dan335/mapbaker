@@ -54,11 +54,13 @@ Mapbaker.prototype.bakeHexes = function() {
     var offsetPosY = offsetY * -1
 
     // size of image
-    var svgWidth = Math.ceil(self.hexSize + (self.hexSize * 3/2 * (self.numHexes-1)) + (self.hexSize/2)) +2
-    var numVerticalHexes = self.numHexes + ((self.numHexes-1)/2)
+    var svgWidth = Math.ceil(self.hexSize + (self.hexSize * 3/2 * (self.numHexes-1)) + (self.hexSize/2))
+    svgWidth += 2 // get rid of space between images
+    //var numVerticalHexes = self.numHexes + ((self.numHexes-1)/2)
     //var svgHeight = Math.ceil((self.hexSize * (Math.sqrt(3) * self.hexSquish)) * numVerticalHexes)
     //var svgHeight = Math.ceil(hexHeight * self.numHexes + hexHeight)
-    var svgHeight = Math.ceil(hexHeight * self.numHexes + hexHeight * 1.5) +2
+    var svgHeight = Math.ceil(hexHeight * self.numHexes * 1.5 + hexHeight)
+    svgHeight += 2 // get rid of space between images
 
     //delete files in temp dir and on s3
     self.deleteLocalFiles()
@@ -299,7 +301,7 @@ Mapbaker.prototype.createImage = function(svgString, name, imageObject) {
         if (x > 0) {
             console.log('baking jpg try '+x)
         }
-        self.createJpgImage(self.meteorPath+name+'.svg', self.meteorPath+name+'.jpg', 'jpg', '75%')
+        self.createJpgImage(self.meteorPath+name+'.svg', self.meteorPath+name+'.jpg', 'jpg', '80%')
         if (x > 10) {
             throw new Meteor.Error('Could not create jpg after 10 tries.')
         }
